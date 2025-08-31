@@ -229,7 +229,7 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
                 fuel_types.append(ft)
         title = "Generation Types - Weekly Energy Production (TWh)"
         y_label = "TWh"
-        y_range = [0, 1.5]  # Fixed range for generation
+        default_y_range = [0, 1.5]  # Fixed range for generation
     else:
         # Define the order for interconnectors
         interconnector_order = ['Nemolink (Belgium)', 'Viking Link (Denmark)', 
@@ -244,21 +244,22 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
             fuel_types.append('TOTAL_INTERCONNECTOR')
         title = "Interconnectors - Weekly Energy Flow (TWh)"
         y_label = "TWh (Import+/Export-)"
-        y_range = [-0.1, 1.5]  # Fixed range for interconnectors
+        default_y_range = [-0.05, 0.15]  # Smaller range for individual interconnectors
+        total_y_range = [-0.1, 1.0]  # Larger range for total
     
     rows = (len(fuel_types) + 1) // 2
     
     subplot_titles = []
     for ft in fuel_types:
         if ft == 'TOTAL_INTERCONNECTOR':
-            subplot_titles.append('TOTAL NET FLOW')
+            subplot_titles.append('Total Interconnector Net Flow')
         else:
             subplot_titles.append(ft)
     
     fig = make_subplots(
         rows=rows, cols=2,
         subplot_titles=subplot_titles,
-        vertical_spacing=0.08,
+        vertical_spacing=0.12,  # Increased spacing between rows
         horizontal_spacing=0.1
     )
     
@@ -305,6 +306,12 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
         
         # Set y-axis range for each subplot
         if chart_type == 'interconnector':
+            # Use different range for total vs individual interconnectors
+            if fuel_type == 'TOTAL_INTERCONNECTOR':
+                y_range = total_y_range
+            else:
+                y_range = default_y_range
+            
             fig.update_yaxes(
                 title_text=y_label,
                 range=y_range,
@@ -316,19 +323,20 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
         else:
             fig.update_yaxes(
                 title_text=y_label,
-                range=y_range,
+                range=default_y_range,
                 row=row, col=col
             )
     
     fig.update_layout(
         barmode='stack',
         title=title,
-        height=300 * rows,
+        height=350 * rows,  # Increased height from 300 to 350
         showlegend=True,
         hovermode='x unified',
         plot_bgcolor='#1E1E1E',
         paper_bgcolor='#0E1117',
-        font=dict(color='white')
+        font=dict(color='white'),
+        title_pad=dict(t=30)  # Add padding under the title
     )
     
     return fig
