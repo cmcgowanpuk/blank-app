@@ -244,7 +244,7 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
             fuel_types.append('TOTAL_INTERCONNECTOR')
         title = "Interconnectors - Weekly Energy Flow (TWh)"
         y_label = "TWh (Import+/Export-)"
-        default_y_range = [-0.05, 0.25]  # Smaller range for individual interconnectors
+        default_y_range = [-0.1, 0.25]  # Smaller range for individual interconnectors
         total_y_range = [-0.1, 1.0]  # Larger range for total
     
     rows = (len(fuel_types) + 1) // 2
