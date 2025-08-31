@@ -99,17 +99,18 @@ def process_interconnector_data(raw_data):
     """
     all_records = []
     
+    # Mapping from API names to display names with countries
     interconnector_mapping = {
-        'Eleclink (INTELEC)': 'INTELEC',
-        'Ireland(East-West)': 'INTEW',
-        'France(IFA)': 'INTFR',
-        'IFA2 (INTIFA2)': 'INTIFA2',
-        'Northern Ireland(Moyle)': 'INTIRL',
-        'Netherlands(BritNed)': 'INTNED',
-        'Belgium (Nemolink)': 'INTNEM',
-        'North Sea Link (INTNSL)': 'INTNSL',
-        'Viking Link (INTVKL)': 'INTVKL',
-        'Greenlink (INTGRNL)': 'INTGRNL'
+        'Eleclink (INTELEC)': 'Eleclink (France)',
+        'Ireland(East-West)': 'East-West (Ireland)',
+        'France(IFA)': 'IFA (France)',
+        'IFA2 (INTIFA2)': 'IFA2 (France)',
+        'Northern Ireland(Moyle)': 'Moyle (Northern Ireland)',
+        'Netherlands(BritNed)': 'BritNed (Netherlands)',
+        'Belgium (Nemolink)': 'Nemolink (Belgium)',
+        'North Sea Link (INTNSL)': 'North Sea Link (Norway)',
+        'Viking Link (INTVKL)': 'Viking Link (Denmark)',
+        'Greenlink (INTGRNL)': 'Greenlink (Ireland)'
     }
     
     if raw_data and 'data' in raw_data:
@@ -120,6 +121,7 @@ def process_interconnector_data(raw_data):
             interconnector_name = period.get('interconnectorName')
             generation = period.get('generation', 0)
             
+            # Map to display name with country
             fuel_type = interconnector_mapping.get(interconnector_name, interconnector_name)
             
             record = {
@@ -189,6 +191,10 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
     if weekly_data.empty:
         return None
     
+    # Dark mode colors - Claude's orange and white
+    peak_color = '#FF8C42'  # Claude's orange
+    off_peak_color = '#E8E8E8'  # Light gray/white for off-peak
+    
     if chart_type == 'generation':
         fuel_types = sorted(weekly_data['fuelType'].unique())
         title = "Generation Types - Weekly Energy Production (MWh)"
@@ -230,13 +236,6 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
             fill_value=0
         ).reset_index()
         
-        if fuel_type == 'TOTAL_INTERCONNECTOR':
-            off_peak_color = 'lightgreen'
-            peak_color = 'darkgreen'
-        else:
-            off_peak_color = 'lightblue'
-            peak_color = 'darkblue'
-        
         if 'Off-Peak' in pivot_data.columns:
             fig.add_trace(
                 go.Bar(
@@ -244,7 +243,7 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
                     y=pivot_data['Off-Peak'],
                     name='Off-Peak' if idx == 0 else None,
                     marker_color=off_peak_color,
-                    showlegend=True if idx == 0 or fuel_type == 'TOTAL_INTERCONNECTOR' else False,
+                    showlegend=True if idx == 0 else False,
                     customdata=pivot_data['efa_week'],
                     hovertemplate=f'{fuel_type} Off-Peak<br>%{{customdata}}<br>MWh: %{{y:,.0f}}<extra></extra>'
                 ),
@@ -258,7 +257,7 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
                     y=pivot_data['Peak'],
                     name='Peak' if idx == 0 else None,
                     marker_color=peak_color,
-                    showlegend=True if idx == 0 or fuel_type == 'TOTAL_INTERCONNECTOR' else False,
+                    showlegend=True if idx == 0 else False,
                     customdata=pivot_data['efa_week'],
                     hovertemplate=f'{fuel_type} Peak<br>%{{customdata}}<br>MWh: %{{y:,.0f}}<extra></extra>'
                 ),
@@ -270,7 +269,7 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
                 title_text=y_label,
                 zeroline=True,
                 zerolinewidth=2,
-                zerolinecolor='black',
+                zerolinecolor='gray',
                 row=row, col=col
             )
         else:
@@ -281,7 +280,10 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
         title=title,
         height=300 * rows,
         showlegend=True,
-        hovermode='x unified'
+        hovermode='x unified',
+        plot_bgcolor='#1E1E1E',
+        paper_bgcolor='#0E1117',
+        font=dict(color='white')
     )
     
     return fig
@@ -331,7 +333,7 @@ def fetch_data(start_date, end_date, progress_bar):
 
 # Main Streamlit App
 def main():
-    st.title("⚡ UK Electricity Generation & Interconnector Flows")
+    st.title("UK Electricity Generation & Interconnector Flows")
     st.markdown("Analysis of UK electricity generation by fuel type and interconnector flows (imports/exports)")
     
     # Sidebar for date selection
@@ -388,7 +390,7 @@ def main():
     
     # Display charts if data is loaded
     if st.session_state.get('data_loaded', False):
-        tab1, tab2, tab3 = st.tabs(["📊 Generation", "🔄 Interconnectors", "📈 Summary"])
+        tab1, tab2 = st.tabs(["Generation", "Interconnectors"])
         
         with tab1:
             st.header("Generation by Fuel Type")
@@ -406,58 +408,19 @@ def main():
                 st.plotly_chart(fig_int, use_container_width=True)
             else:
                 st.warning("No interconnector data available")
-        
-        with tab3:
-            st.header("Summary Statistics")
             
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.subheader("Generation Summary")
-                if not st.session_state['gen_weekly'].empty:
-                    gen_summary = st.session_state['gen_weekly'].groupby('fuelType')['mwh'].sum().sort_values(ascending=False)
-                    st.dataframe(
-                        gen_summary.to_frame().rename(columns={'mwh': 'Total MWh'}),
-                        use_container_width=True
-                    )
-            
-            with col2:
-                st.subheader("Interconnector Net Flows")
-                if not st.session_state['int_weekly'].empty:
-                    int_summary = st.session_state['int_weekly'].groupby('fuelType')['mwh'].sum().sort_values()
-                    
-                    # Format the summary
-                    int_summary_df = pd.DataFrame({
-                        'Interconnector': int_summary.index,
-                        'Net MWh': int_summary.values,
-                        'Flow Type': ['Net Export' if x < 0 else 'Net Import' for x in int_summary.values]
-                    })
-                    
-                    # Highlight the total row
-                    def highlight_total(row):
-                        if row['Interconnector'] == 'TOTAL_INTERCONNECTOR':
-                            return ['background-color: lightgreen'] * len(row)
-                        return [''] * len(row)
-                    
-                    st.dataframe(
-                        int_summary_df.style.apply(highlight_total, axis=1),
-                        use_container_width=True,
-                        hide_index=True
-                    )
-            
-            # Download options
-            st.subheader("Download Data")
+            # Download option
             if not st.session_state['gen_weekly'].empty or not st.session_state['int_weekly'].empty:
                 all_weekly = pd.concat([st.session_state['gen_weekly'], st.session_state['int_weekly']], ignore_index=True)
                 csv = all_weekly.to_csv(index=False)
                 st.download_button(
-                    label="📥 Download CSV",
+                    label="Download CSV",
                     data=csv,
                     file_name=f"uk_electricity_data_{start_date.strftime('%Y%m%d')}_{end_date.strftime('%Y%m%d')}.csv",
                     mime="text/csv"
                 )
     else:
-        st.info("👈 Select date range and click 'Fetch Data' to begin")
+        st.info("Select date range and click 'Fetch Data' to begin")
 
 if __name__ == "__main__":
     main()
