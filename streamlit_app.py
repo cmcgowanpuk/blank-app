@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 
 # Streamlit page configuration
 st.set_page_config(
-    page_title="UK Electricity Generation & Interconnector Flows",
+    page_title="CPMPUK Analytics",
     page_icon="⚡",
     layout="wide"
 )
@@ -244,7 +244,7 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
             fuel_types.append('TOTAL_INTERCONNECTOR')
         title = "Interconnectors - Weekly Energy Flow (TWh)"
         y_label = "TWh (Import+/Export-)"
-        default_y_range = [-0.05, 0.15]  # Smaller range for individual interconnectors
+        default_y_range = [-0.05, 0.25]  # Smaller range for individual interconnectors
         total_y_range = [-0.1, 1.0]  # Larger range for total
     
     rows = (len(fuel_types) + 1) // 2
@@ -386,7 +386,7 @@ def fetch_data(start_date, end_date, progress_bar):
 
 # Main Streamlit App
 def main():
-    st.title("UK Electricity Generation & Interconnector Flows")
+    st.title("CPMPUK Analytics")
     st.markdown("Analysis of UK electricity generation by fuel type and interconnector flows (imports/exports)")
     
     # Sidebar for date selection
