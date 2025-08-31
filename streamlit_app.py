@@ -7,7 +7,7 @@ from plotly.subplots import make_subplots
 
 # Streamlit page configuration
 st.set_page_config(
-    page_title="MC UK Analytics Dashboard",
+    page_title="UK Electricity Generation & Interconnector Flows",
     page_icon="⚡",
     layout="wide"
 )
@@ -24,6 +24,7 @@ GENERATION_DISPLAY_NAMES = {
     'OTHER': 'Other',
     'PS': 'Pumped Storage',
     'WIND': 'Wind',
+    'SOLAR': 'Solar'
 }
 
 # Cache the data fetching functions to avoid repeated API calls
@@ -209,6 +210,10 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
     if weekly_data.empty:
         return None
     
+    # Convert MWh to TWh for display (divide by 1,000,000)
+    weekly_data_twh = weekly_data.copy()
+    weekly_data_twh['twh'] = weekly_data_twh['mwh'] / 1_000_000
+    
     # Dark mode colors - Claude's orange and white
     peak_color = '#FF8C42'  # Claude's orange
     off_peak_color = '#E8E8E8'  # Light gray/white for off-peak
@@ -217,13 +222,14 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
         # Define the order for generation types
         generation_order = ['Biomass', 'Coal', 'CCGT', 'Non-PS Hydro', 'Nuclear', 
                           'OCGT', 'Oil', 'Other', 'Pumped Storage', 'Solar', 'Wind']
-        fuel_types = [ft for ft in generation_order if ft in weekly_data['fuelType'].unique()]
+        fuel_types = [ft for ft in generation_order if ft in weekly_data_twh['fuelType'].unique()]
         # Add any missing types at the end
-        for ft in sorted(weekly_data['fuelType'].unique()):
+        for ft in sorted(weekly_data_twh['fuelType'].unique()):
             if ft not in fuel_types:
                 fuel_types.append(ft)
-        title = "Generation Types - Weekly Energy Production (MWh)"
-        y_label = "MWh"
+        title = "Generation Types - Weekly Energy Production (TWh)"
+        y_label = "TWh"
+        y_range = [0, 1.5]  # Fixed range for generation
     else:
         # Define the order for interconnectors
         interconnector_order = ['Nemolink (Belgium)', 'Viking Link (Denmark)', 
@@ -232,12 +238,13 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
                                'BritNed (Netherlands)', 'North Sea Link (Norway)',
                                'Moyle (Northern Ireland)']
         individual_interconnectors = [ft for ft in interconnector_order 
-                                     if ft in weekly_data['fuelType'].unique() and ft != 'TOTAL_INTERCONNECTOR']
+                                     if ft in weekly_data_twh['fuelType'].unique() and ft != 'TOTAL_INTERCONNECTOR']
         fuel_types = individual_interconnectors
-        if 'TOTAL_INTERCONNECTOR' in weekly_data['fuelType'].unique():
+        if 'TOTAL_INTERCONNECTOR' in weekly_data_twh['fuelType'].unique():
             fuel_types.append('TOTAL_INTERCONNECTOR')
-        title = "Interconnectors - Weekly Energy Flow (MWh)"
-        y_label = "MWh (Import+/Export-)"
+        title = "Interconnectors - Weekly Energy Flow (TWh)"
+        y_label = "TWh (Import+/Export-)"
+        y_range = [-0.1, 1.5]  # Fixed range for interconnectors
     
     rows = (len(fuel_types) + 1) // 2
     
@@ -259,12 +266,12 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
         row = (idx // 2) + 1
         col = (idx % 2) + 1
         
-        fuel_data = weekly_data[weekly_data['fuelType'] == fuel_type]
+        fuel_data = weekly_data_twh[weekly_data_twh['fuelType'] == fuel_type]
         
         pivot_data = fuel_data.pivot_table(
             index=['week_start', 'efa_week'],
             columns='period_type',
-            values='mwh',
+            values='twh',
             fill_value=0
         ).reset_index()
         
@@ -277,7 +284,7 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
                     marker_color=off_peak_color,
                     showlegend=True if idx == 0 else False,
                     customdata=pivot_data['efa_week'],
-                    hovertemplate=f'{fuel_type} Off-Peak<br>%{{customdata}}<br>MWh: %{{y:,.0f}}<extra></extra>'
+                    hovertemplate=f'{fuel_type} Off-Peak<br>%{{customdata}}<br>TWh: %{{y:.3f}}<extra></extra>'
                 ),
                 row=row, col=col
             )
@@ -291,21 +298,27 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
                     marker_color=peak_color,
                     showlegend=True if idx == 0 else False,
                     customdata=pivot_data['efa_week'],
-                    hovertemplate=f'{fuel_type} Peak<br>%{{customdata}}<br>MWh: %{{y:,.0f}}<extra></extra>'
+                    hovertemplate=f'{fuel_type} Peak<br>%{{customdata}}<br>TWh: %{{y:.3f}}<extra></extra>'
                 ),
                 row=row, col=col
             )
         
+        # Set y-axis range for each subplot
         if chart_type == 'interconnector':
             fig.update_yaxes(
                 title_text=y_label,
+                range=y_range,
                 zeroline=True,
                 zerolinewidth=2,
                 zerolinecolor='gray',
                 row=row, col=col
             )
         else:
-            fig.update_yaxes(title_text=y_label, row=row, col=col)
+            fig.update_yaxes(
+                title_text=y_label,
+                range=y_range,
+                row=row, col=col
+            )
     
     fig.update_layout(
         barmode='stack',
