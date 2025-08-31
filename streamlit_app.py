@@ -7,10 +7,24 @@ from plotly.subplots import make_subplots
 
 # Streamlit page configuration
 st.set_page_config(
-    page_title="UK Electricity Generation & Interconnector Flows",
+    page_title="MC UK Analytics Dashboard",
     page_icon="⚡",
     layout="wide"
 )
+
+# Dictionary for generation type display names
+GENERATION_DISPLAY_NAMES = {
+    'BIOMASS': 'Biomass',
+    'COAL': 'Coal',
+    'CCGT': 'CCGT',
+    'NPSHYD': 'Non-PS Hydro',
+    'NUCLEAR': 'Nuclear',
+    'OCGT': 'OCGT',
+    'OIL': 'Oil',
+    'OTHER': 'Other',
+    'PS': 'Pumped Storage',
+    'WIND': 'Wind',
+}
 
 # Cache the data fetching functions to avoid repeated API calls
 @st.cache_data(ttl=3600)  # Cache for 1 hour
@@ -79,10 +93,14 @@ def process_generation_data(raw_data):
         
         for fuel_data in period['data']:
             if fuel_data['fuelType'] not in interconnectors:
+                # Map to display name
+                fuel_type = fuel_data['fuelType']
+                display_name = GENERATION_DISPLAY_NAMES.get(fuel_type, fuel_type)
+                
                 record = {
                     'startTime': start_time,
                     'settlementPeriod': settlement_period,
-                    'fuelType': fuel_data['fuelType'],
+                    'fuelType': display_name,
                     'generation': fuel_data['generation']
                 }
                 all_records.append(record)
@@ -196,11 +214,25 @@ def create_plotly_chart(weekly_data, chart_type='generation'):
     off_peak_color = '#E8E8E8'  # Light gray/white for off-peak
     
     if chart_type == 'generation':
-        fuel_types = sorted(weekly_data['fuelType'].unique())
+        # Define the order for generation types
+        generation_order = ['Biomass', 'Coal', 'CCGT', 'Non-PS Hydro', 'Nuclear', 
+                          'OCGT', 'Oil', 'Other', 'Pumped Storage', 'Solar', 'Wind']
+        fuel_types = [ft for ft in generation_order if ft in weekly_data['fuelType'].unique()]
+        # Add any missing types at the end
+        for ft in sorted(weekly_data['fuelType'].unique()):
+            if ft not in fuel_types:
+                fuel_types.append(ft)
         title = "Generation Types - Weekly Energy Production (MWh)"
         y_label = "MWh"
     else:
-        individual_interconnectors = sorted([ft for ft in weekly_data['fuelType'].unique() if ft != 'TOTAL_INTERCONNECTOR'])
+        # Define the order for interconnectors
+        interconnector_order = ['Nemolink (Belgium)', 'Viking Link (Denmark)', 
+                               'Eleclink (France)', 'IFA (France)', 'IFA2 (France)',
+                               'East-West (Ireland)', 'Greenlink (Ireland)',
+                               'BritNed (Netherlands)', 'North Sea Link (Norway)',
+                               'Moyle (Northern Ireland)']
+        individual_interconnectors = [ft for ft in interconnector_order 
+                                     if ft in weekly_data['fuelType'].unique() and ft != 'TOTAL_INTERCONNECTOR']
         fuel_types = individual_interconnectors
         if 'TOTAL_INTERCONNECTOR' in weekly_data['fuelType'].unique():
             fuel_types.append('TOTAL_INTERCONNECTOR')
